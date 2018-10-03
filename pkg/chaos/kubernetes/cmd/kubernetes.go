@@ -37,9 +37,13 @@ func NewKubeCLICommand(ctx context.Context) *cli.Command {
 				Usage: "path to the kubeconfig file to use for Kubernetes API requests",
 				Value: "~/.kube/config",
 			},
+			cli.StringFlag{
+				Name:  "duration, d",
+				Usage: "kubernetes chaos duration; should be smaller than recurrent interval; use with optional unit suffix: 'ms/s/m/h'",
+			},
 		},
 		Subcommands: []cli.Command{
-			*NewPatchCLICommand(ctx),
+			*NewScaleToZeroCLICommand(ctx),
 		},
 		Usage:       "chaos testing for Kubernetes",
 		ArgsUsage:   fmt.Sprintf("services/pods/deployments: name/label, list of names/labels, or RE2 regex if prefixed with %q", chaos.Re2Prefix),
