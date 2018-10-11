@@ -1,23 +1,23 @@
 #!/usr/bin/env bats
 
 @test "Netem Help" {
-  run pumba netem --help
+  run pumba docker netem --help
   [ $status -eq 0 ]
 }
 
 @test "Netem Delay Help" {
-  run pumba netem delay --help
+  run pumba docker netem delay --help
   [ $status -eq 0 ]
 }
 
 @test "Netem Delay Undefined Duration" {
-  run pumba netem delay --time 100
+  run pumba docker netem delay --time 100
   [ $status -eq 1 ]
   [[ ${lines[0]} =~ "undefined duration" ]]
 }
 
 @test "Netem Delay 200ms" {
-  run pumba netem --duration 200ms delay --time 100
+  run pumba docker netem --duration 200ms delay --time 100
   [ $status -eq 0 ]
   [[ $output =~ "no containers found" ]]
 }
@@ -32,7 +32,7 @@
   done
   # pull tc image beforehead
   docker pull gaiadocker/iproute2
-  run pumba -l=info netem --duration 5s --tc-image gaiadocker/iproute2 delay --time 1000 pingtest
+  run pumba -l=info docker netem --duration 5s --tc-image gaiadocker/iproute2 delay --time 1000 pingtest
   [ $status -eq 0 ]
   [[ $output =~ "start netem for container" ]]
   [[ $output =~ "stop netem for container" ]]

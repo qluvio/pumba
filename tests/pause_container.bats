@@ -3,7 +3,7 @@
     docker run -d --name pausing_victim alpine tail -f /dev/null
 
     # when (trying to pause container)
-    run pumba pause --duration 3s pausing_victim &
+    run pumba docker pause --duration 3s pausing_victim &
     sleep 2
 
     # then (container has been paused)

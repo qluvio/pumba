@@ -5,7 +5,6 @@
 .gtm
 .idea
 .vscode
-.bin
 
 .gitignore
 .env

@@ -5,7 +5,7 @@
     docker run -d --name victim alpine tail -f /dev/null
 
     # when (trying to remove container)
-    run pumba rm /victim
+    run pumba docker rm /victim
 
     # then (pumba exited successfully)
     [ $status -eq 0 ]

@@ -2,21 +2,14 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/alexei-led/pumba/pkg/chaos"
-	"github.com/alexei-led/pumba/pkg/chaos/docker/cmd"
+	dockerCmd "github.com/alexei-led/pumba/pkg/chaos/docker/cmd"
 	kubeCmd "github.com/alexei-led/pumba/pkg/chaos/kubernetes/cmd"
-	netemCmd "github.com/alexei-led/pumba/pkg/chaos/netem/cmd"
-	"github.com/alexei-led/pumba/pkg/container"
 	"github.com/alexei-led/pumba/pkg/logger"
 
 	log "github.com/sirupsen/logrus"
@@ -32,7 +25,7 @@ var (
 
 var (
 	// Version that is passed on compile time through -ldflags
-	Version = "built locally"
+	Version = "dev.build"
 
 	// GitCommit that is passed on compile time through -ldflags
 	GitCommit = "none"
@@ -45,13 +38,6 @@ var (
 
 	// HumanVersion is a human readable app version
 	HumanVersion = fmt.Sprintf("%s - %.7s (%s) %s", Version, GitCommit, GitBranch, BuildTime)
-)
-
-const (
-	// Re2Prefix re2 regexp string prefix
-	Re2Prefix = "re2:"
-	// DefaultInterface default network interface
-	DefaultInterface = "eth0"
 )
 
 func contains(slice []string, item string) bool {
@@ -72,12 +58,6 @@ func init() {
 }
 
 func main() {
-	rootCertPath := "/etc/ssl/docker"
-
-	if os.Getenv("DOCKER_CERT_PATH") != "" {
-		rootCertPath = os.Getenv("DOCKER_CERT_PATH")
-	}
-
 	app := cli.NewApp()
 	app.Name = "Pumba"
 	app.Version = HumanVersion
@@ -89,41 +69,13 @@ func main() {
 		},
 	}
 	app.EnableBashCompletion = true
-	app.Usage = "Pumba is a resilience testing tool, that helps applications tolerate random Docker container failures: process, network and performance."
-	app.ArgsUsage = fmt.Sprintf("containers (name, list of names, or RE2 regex if prefixed with %q)", Re2Prefix)
+	app.Usage = "is a resilience/chaos testing tool, for Docker and Kubernetes"
 	app.Before = before
-	app.Commands = initializeCLICommands()
+	app.Commands = []cli.Command{
+		*dockerCmd.NewDockerCLICommand(topContext),
+		*kubeCmd.NewKubeCLICommand(topContext),
+	}
 	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:   "host, H",
-			Usage:  "daemon socket to connect to",
-			Value:  "unix:///var/run/docker.sock",
-			EnvVar: "DOCKER_HOST",
-		},
-		cli.BoolFlag{
-			Name:  "tls",
-			Usage: "use TLS; implied by --tlsverify",
-		},
-		cli.BoolFlag{
-			Name:   "tlsverify",
-			Usage:  "use TLS and verify the remote",
-			EnvVar: "DOCKER_TLS_VERIFY",
-		},
-		cli.StringFlag{
-			Name:  "tlscacert",
-			Usage: "trust certs signed only by this CA",
-			Value: fmt.Sprintf("%s/ca.pem", rootCertPath),
-		},
-		cli.StringFlag{
-			Name:  "tlscert",
-			Usage: "client certificate for TLS authentication",
-			Value: fmt.Sprintf("%s/cert.pem", rootCertPath),
-		},
-		cli.StringFlag{
-			Name:  "tlskey",
-			Usage: "client key for TLS authentication",
-			Value: fmt.Sprintf("%s/key.pem", rootCertPath),
-		},
 		cli.StringFlag{
 			Name:   "log-level, l",
 			Usage:  "set log level (debug, info, warning(*), error, fatal, panic)",
@@ -150,7 +102,7 @@ func main() {
 		},
 		cli.BoolFlag{
 			Name:  "random, r",
-			Usage: "randomly select single matching container from list of target containers",
+			Usage: "randomly select single matching target from list of targets",
 		},
 		cli.BoolFlag{
 			Name:   "dry-run",
@@ -200,13 +152,6 @@ func before(c *cli.Context) error {
 	traceHook := logger.NewHook()
 	traceHook.AppName = "pumba"
 	log.AddHook(traceHook)
-	// Set-up container client
-	tls, err := tlsConfig(c)
-	if err != nil {
-		return err
-	}
-	// create new Docker client
-	chaos.DockerClient = container.NewClient(c.GlobalString("host"), tls)
 	return nil
 }
 
@@ -227,97 +172,4 @@ func handleSignals() context.Context {
 	}()
 
 	return ctx
-}
-
-// tlsConfig translates the command-line options into a tls.Config struct
-func tlsConfig(c *cli.Context) (*tls.Config, error) {
-	var tlsConfig *tls.Config
-	var err error
-	caCertFlag := c.GlobalString("tlscacert")
-	certFlag := c.GlobalString("tlscert")
-	keyFlag := c.GlobalString("tlskey")
-
-	if c.GlobalBool("tls") || c.GlobalBool("tlsverify") {
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: !c.GlobalBool("tlsverify"),
-		}
-
-		// Load CA cert
-		if caCertFlag != "" {
-			var caCert []byte
-			if strings.HasPrefix(caCertFlag, "/") {
-				caCert, err = ioutil.ReadFile(caCertFlag)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				caCert = []byte(caCertFlag)
-			}
-			caCertPool := x509.NewCertPool()
-			caCertPool.AppendCertsFromPEM(caCert)
-			tlsConfig.RootCAs = caCertPool
-		}
-
-		// Load client certificate
-		if certFlag != "" && keyFlag != "" {
-			var cert tls.Certificate
-			if strings.HasPrefix(certFlag, "/") && strings.HasPrefix(keyFlag, "/") {
-				cert, err = tls.LoadX509KeyPair(certFlag, keyFlag)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				cert, err = tls.X509KeyPair([]byte(certFlag), []byte(keyFlag))
-				if err != nil {
-					return nil, err
-				}
-			}
-			tlsConfig.Certificates = []tls.Certificate{cert}
-		}
-	}
-	return tlsConfig, nil
-}
-
-func initializeCLICommands() []cli.Command {
-	return []cli.Command{
-		*cmd.NewKillCLICommand(topContext),
-		*cmd.NewStopCLICommand(topContext),
-		*cmd.NewPauseCLICommand(topContext),
-		*cmd.NewRemoveCLICommand(topContext),
-		{
-			Name: "netem",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "duration, d",
-					Usage: "network emulation duration; should be smaller than recurrent interval; use with optional unit suffix: 'ms/s/m/h'",
-				},
-				cli.StringFlag{
-					Name:  "interface, i",
-					Usage: "network interface to apply delay on",
-					Value: DefaultInterface,
-				},
-				cli.StringSliceFlag{
-					Name:  "target, t",
-					Usage: "target IP filter; supports multiple IPs",
-				},
-				cli.StringFlag{
-					Name:  "tc-image",
-					Usage: "Docker image with tc (iproute2 package); try 'gaiadocker/iproute2'",
-				},
-			},
-			Usage:       "emulate the properties of wide area networks",
-			ArgsUsage:   fmt.Sprintf("containers (name, list of names, or RE2 regex if prefixed with %q", Re2Prefix),
-			Description: "delay, loss, duplicate and re-order (run 'netem') packets, and limit the bandwidth, to emulate different network problems",
-			Subcommands: []cli.Command{
-				*netemCmd.NewDelayCLICommand(topContext),
-				*netemCmd.NewLossCLICommand(topContext),
-				*netemCmd.NewLossStateCLICommand(topContext),
-				*netemCmd.NewLossGECLICommand(topContext),
-				*netemCmd.NewRateCLICommand(topContext),
-				*netemCmd.NewDuplicateCLICommand(topContext),
-				*netemCmd.NewCorruptCLICommand(topContext),
-			},
-		},
-		*kubeCmd.NewKubeCLICommand(topContext),
-	}
 }

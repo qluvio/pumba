@@ -7,9 +7,10 @@
 [ -z "$VCS_BRANCH_NAME" ] && VCS_BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 
 go_build() {
+  echo "==> building wiht CGO_ENABLED=${CGO_ENABLED:-0} flag ..."
   [ -d "${DIST}" ] && rm -rf "${DIST:?}/*"
   [ -d "${DIST}" ] || mkdir -p "${DIST}"
-  CGO_ENABLED=0 go build \
+  CGO_ENABLED=${CGO_ENABLED:-0} go build \
     -ldflags "-s -w -X main.Version=${VERSION} -X main.GitCommit=${VCS_COMMIT_ID} -X main.GitBranch=${VCS_BRANCH_NAME} -X main.BuildTime=${BUILDTIME}" \
     -v -o "${DIST}/pumba" ./cmd
 }

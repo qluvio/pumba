@@ -1,11 +1,10 @@
 #
 # ----- Go Builder Image ------
 #
-FROM golang:1.11-alpine AS builder
+FROM golang:1.11 AS builder
 
 # github-release - Github Release and upload artifacts
 # go-junit-report - convert Go test into junit.xml format
-RUN apk add --no-cache git bash curl || apk update && apk upgrade
 RUN go get -v github.com/aktau/github-release && \
     go get -v github.com/jstemmer/go-junit-report
 
@@ -21,8 +20,8 @@ WORKDIR /go/src/github.com/alexei-led/pumba
 # copy sources
 COPY . .
 
-# run test and calculate coverage
-RUN VERSION=$(cat VERSION) hack/test.sh
+# run test and calculate coverage; enable CGO_ENABLED to run tests with `-race` flag
+RUN VERSION=$(cat VERSION) CGO_ENABLED=1 hack/test.sh
 
 # `VCS_COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null)`
 ARG VCS_COMMIT_ID
@@ -34,7 +33,7 @@ ENV VCS_BRANCH_NAME ${VCS_BRANCH_NAME}
 ARG VCS_SLUG
 ENV VCS_SLUG ${VCS_SLUG}
 # bild pumba binary for amd64 linux
-RUN VERSION=$(cat VERSION) hack/build.sh
+RUN VERSION=$(cat VERSION) CGO_ENABLED=0 hack/build.sh
 
 # upload coverage reports to Codecov.io, if CODECOV_TOKEN set through build-arg
 ARG CODECOV_TOKEN
@@ -64,10 +63,10 @@ ARG TAG_MESSAGE
 ARG GITHUB_TOKEN
 
 # build pumba for all platforms
-RUN if [[ "$RELEASE" == true ]]; then VERSION=$(cat VERSION) hack/xbuild.sh; fi
+RUN if [ "$RELEASE" = "true" ]; then VERSION=$(cat VERSION) CGO_ENABLED=0 hack/xbuild.sh; fi
 
 # release to GitHub
-RUN if [[ "$RELEASE" == true ]]; then hack/github_release.sh alexei-led pumba; fi
+RUN if [ "$RELEASE" = "true" ]; then hack/github_release.sh alexei-led pumba; fi
 
 #
 # ------ Pumba runtime image ------

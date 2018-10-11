@@ -22,8 +22,8 @@ do
         output_name+='.exe'
     fi  
 
-    echo "Building pumba for ${GOOS}/${GOARCH}..."
-    CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+    echo "==> building pumba for ${GOOS}/${GOARCH} with CGO_ENABLED=${CGO_ENABLED:-0} flag ..."
+    CGO_ENABLED=${CGO_ENABLED:-0} GOOS=$GOOS GOARCH=$GOARCH go build \
     -ldflags "-s -w -X main.Version=${VERSION} -X main.GitCommit=${VCS_COMMIT_ID} -X main.GitBranch=${VCS_BRANCH_NAME} -X main.BuildTime=${BUILDTIME}" \
     -o "${DIST}/${output_name}" ./cmd
     if [ $? -ne 0 ]; then

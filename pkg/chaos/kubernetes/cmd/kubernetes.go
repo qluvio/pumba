@@ -47,7 +47,7 @@ func NewKubeCLICommand(ctx context.Context) *cli.Command {
 		},
 		Usage:       "chaos testing for Kubernetes",
 		ArgsUsage:   fmt.Sprintf("services/pods/deployments: name/label, list of names/labels, or RE2 regex if prefixed with %q", chaos.Re2Prefix),
-		Description: "emulate different failures and resource starvation for Kubernetes services, pods and containers",
+		Description: "tolerate random failures for Kubernetes resources: stability, network,  performance, resource limits and configuration issues",
 		Before:      cmdContext.before,
 	}
 }
